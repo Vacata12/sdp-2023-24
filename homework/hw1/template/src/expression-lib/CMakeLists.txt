@@ -6,4 +6,4 @@ target_sources(
 	PRIVATE
 		"expression.cpp"
 		"expression.h"
-)
+     "Operator.cpp" "Operator.h")
