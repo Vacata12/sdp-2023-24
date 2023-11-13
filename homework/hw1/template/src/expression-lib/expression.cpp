@@ -77,7 +77,7 @@ double evaluate(const char* expression, std::istream& ops)
 					opsStack.pop();
 					if (opsStack.empty())
 						break;
-				} while (opsStack.top() <= tmp2);
+				} while (opsStack.top() >= tmp2);
 				opsStack.push(tmp2);
 			}
 			else if (opsStack.top() == tmp2)
@@ -294,7 +294,7 @@ double evaluate(const char* expression, unsigned& i, const unsigned& expLen, con
 					opsStack.pop();
 					if (opsStack.empty())
 						break;
-				} while (opsStack.top() <= tmp2);
+				} while (opsStack.top() >= tmp2);
 				opsStack.push(tmp2);
 			}
 			else if (opsStack.top() == tmp2)
