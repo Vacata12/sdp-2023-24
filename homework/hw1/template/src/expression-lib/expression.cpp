@@ -1,22 +1,22 @@
 #include "expression.h"
-#include "Stack.hpp"
 #include "DynamicArray.hpp"
 #include "Operator.h"
 #include <string>
+#include<stack>
 
 
-//Helping functions
+
 bool isDigit(const char& symbol);
 bool isLetter(const char& symbol);
 bool checkIfIsEmpty(const char* expression);
 int checkBrackets(const char* expression, const unsigned& expLen);
 void checkIfExpressionIsCorrect(const char* expression, DynamicArray<Operator>& opsArr, const unsigned& expLen);
 double makeCalculation(const double& num1, const double& num2, const char& symbol);
-void makeOperation(Stack<double>& nums, Stack<Operator>& opsStack);
-char* expressionInBrackets(const char* expression, unsigned& index, const unsigned& expLen);
-Operator findOperatorInArr(const char& symbol, const DynamicArray<Operator>& opsArr);
-void loadNumIntoTheStack(Stack<double>& nums, const char* expression, unsigned& index, const unsigned& expLen);
-double evaluateInBrackets(const char* expression, const DynamicArray<Operator>& opsArr);
+void makeOperation(std::stack<double>& nums, const Operator& opsStack);
+Operator findOperatorInArr(const char& symbol, const DynamicArray<Operator>& op);
+void loadNumIntoTheStack(std::stack<double>& nums, const char* expression, unsigned& index, const unsigned& expLen);
+// other function evaluate for brackets
+double evaluate(const char* expression, unsigned& index, const unsigned& expLen, const DynamicArray<Operator>& opsArr);
 
 //Load operators to the stack
 void loadOperators(DynamicArray<Operator>& opsArr, std::istream& ops); 
@@ -38,62 +38,81 @@ double evaluate(const char* expression, std::istream& ops)
 	if (checkIfIsEmpty(expression))
 		return 0.00;
 	DynamicArray<Operator> opsArr;
-	Stack<Operator> opsStack;
-	Stack<double> nums;
+	std::stack<Operator> opsStack;
+	std::stack<double> nums;
 	loadOperators(opsArr, ops);
 	unsigned expLen = strlen(expression);
 	checkIfExpressionIsCorrect(expression, opsArr, expLen);
 	for (unsigned i = 0; i < expLen; i++)
 	{
+		if (expression[i] == ' ')
+			continue;
 		if (expression[i] == '(')
 		{
-			nums.push(evaluateInBrackets(expressionInBrackets(expression, i, expLen), opsArr));
-		}
-		if (i + 1 < expLen)
-		{
-			if (expression[i] == '-' && isDigit(expression[i + 1]))
-			{
-				loadNumIntoTheStack(nums, expression, i, expLen);
-			}
+			nums.push(evaluate(expression, i, expLen, opsArr));
 		}
 		if (isDigit(expression[i]))
-		{
 			loadNumIntoTheStack(nums, expression, i, expLen);
-		}
+		else if (expression[i] == '-')
+			loadNumIntoTheStack(nums, expression, i, expLen);
 		else if (isLetter(expression[i]))
 		{
-			if (!opsStack.isEmpty())
+			Operator tmp2 = findOperatorInArr(expression[i], opsArr);
+			if (opsStack.empty())
 			{
-				if (opsStack.peek() == findOperatorInArr(expression[i], opsArr))
+				opsStack.push(tmp2);
+				continue;
+			}
+			if (opsStack.top() < tmp2)
+			{
+				opsStack.push(tmp2);
+			}
+			else if (opsStack.top() > tmp2)
+			{
+				Operator tmp1;
+				do
 				{
-					makeOperation(nums, opsStack);
+					tmp1 = opsStack.top();
+					makeOperation(nums, tmp1);
+					opsStack.pop();
+					if (opsStack.empty())
+						break;
+				} while (opsStack.top() <= tmp2);
+				opsStack.push(tmp2);
+			}
+			else if (opsStack.top() == tmp2)
+			{
+				if (opsStack.top().getAssociativity() == 'L')
+				{
+					Operator tmp = opsStack.top();
+					makeOperation(nums, tmp);
+					opsStack.pop();
+					opsStack.push(tmp2);
+				}
+				else if (tmp2.getAssociativity() == 'R')
+				{
+					i += 2;
+					if (expression[i] == '(')
+					{
+						nums.push(evaluate(expression, i, expLen, opsArr));
+					}
+					else
+					{
+						loadNumIntoTheStack(nums, expression, i, expLen);
+					}
+					makeOperation(nums, tmp2);
 				}
 			}
-			opsStack.push(findOperatorInArr(expression[i], opsArr));
-		}
-		if (opsStack.getCurrSize() > 1)
-		{
-			if (opsStack[0] < opsStack[1] && isDigit(expression[i]))
-			{
-				loadNumIntoTheStack(nums, expression, i, expLen);
-				makeOperation(nums, opsStack);
-			}
-			else
-			{
-				makeOperation(nums, opsStack);
-			}
 		}
 	}
-	if (nums.getCurrSize() == 1 && opsStack.getCurrSize() == 0)
+	while (!opsStack.empty())
 	{
-		double result = nums.peek();
-		return result;
+		Operator tmp = opsStack.top();
+		opsStack.pop();
+		makeOperation(nums, tmp);
 	}
-	if(nums.getCurrSize() == 2 && opsStack.getCurrSize() == 1)
-		makeOperation(nums, opsStack);
-	//throw std::exception();
-	double result = nums.peek();
-	std::cout << "Result: " << nums[0] << std::endl;
+	double result = nums.top();
+	std::cout << "Result: " << result << std::endl;
 	return result;
 }
 
@@ -127,49 +146,49 @@ int checkBrackets(const char* expression, const unsigned& expLen)
 }
 void checkIfExpressionIsCorrect(const char* expression, DynamicArray<Operator>& opsArr, const unsigned& expLen)
 {
-	const char error[] = "Incorrect Expression!\n";
 	if (isLetter(expression[0]))
-		throw incorrect_expression(error);
+		throw incorrect_expression("Symbol at first possition!\n");
 	if (isLetter(expression[expLen - 1]))
-		throw incorrect_expression(error);
-
+		throw incorrect_expression("Symbol at last possition!\n");
+	if(checkBrackets(expression, expLen) != 0)
+		throw incorrect_expression("Worng brackets!\n");
 
 	bool noNums = true;
 	for (size_t i = 0; i < expLen; i++)
 	{
 		if (i + 1 < expLen && expression[i] == '-' && !isDigit(expression[i + 1]))
-			throw incorrect_expression(error);
+			throw incorrect_expression("Minus as operator!\n");
 		else if (i - 2 < 0)
 			continue;
 		else if (isLetter(expression[i]) && isLetter(expression[i - 2]))
-			throw incorrect_expression(error);
-		else if (isDigit(expression[i]) && isDigit(expression[i - 2]))
-			throw incorrect_expression(error);
+			throw incorrect_expression("Two consecutive symbols!\n");
+		else if (isDigit(expression[i]) && isDigit(expression[i - 2]) && expression[i - 1] == ' ')
+			throw incorrect_expression("Two consecutive numbers!\n");
 		else if (isLetter(expression[i]))
 			findOperatorInArr(expression[i], opsArr);
 		else if (noNums && isDigit(expression[i]))
 			noNums = false;
-		else if (checkBrackets(expression, expLen) != 0)
-			throw incorrect_expression(error);
+		else if (expression[i] == ')' && expression[i - 2] == ')')
+			continue;
 		else if (!isDigit(expression[i]) && !isLetter(expression[i])
 			&& expression[i] != '-' && expression[i] != ' '
 			&& expression[i] != '(' && expression[i] != ')')
-			throw incorrect_expression(error);
+			throw incorrect_expression("Wrong symbol in expression!\n");
 		else if (isLetter(expression[i]) && noNums == true)
-			throw incorrect_expression(error);
+			throw incorrect_expression("Only symbols!\n");
 		else if (expression[i] == '(' && expression[i + 1] != ' '
 			|| expression[i - 1] != ' ' && expression[i] == ')')
-			throw incorrect_expression(error);
+			throw incorrect_expression("Before and after closing and opening brackets should have whitespace!\n");
 		else if (isLetter(expression[i]) && !isDigit(expression[i + 2]))
-			throw incorrect_expression(error);
+			throw incorrect_expression("No num after symbol!\n");
 		else if (expression[i] == '(' && expression[i + 2] == '-')
 			continue;
 		else if (expression[i] == '(' && !isDigit(expression[i + 2])
 			|| expression[i] == ')' && !isDigit(expression[i - 2]))
-			throw incorrect_expression(error);
+			throw incorrect_expression("Before and after closing and opening brackets should have number!\n");
 	}
 	if (noNums)
-		throw incorrect_expression(error);
+		throw incorrect_expression("No nums");
 }
 double makeCalculation(const double& num1, const double& num2, const char& symbol)
 {
@@ -185,15 +204,13 @@ double makeCalculation(const double& num1, const double& num2, const char& symbo
 		return num1 / num2;
 	}
 }
-void makeOperation(Stack<double>& nums, Stack<Operator>& opsStack)
+void makeOperation(std::stack<double>& nums, const Operator& op)
 {
-	double num2 = nums.peek();
+	double num2 = nums.top();
 	nums.pop();
-	double num1 = nums.peek();
+	double num1 = nums.top();
 	nums.pop();
-	Operator tmp = opsStack.peek();
-	opsStack.pop();
-	nums.push(makeCalculation(num1, num2, tmp.getOperation()));
+	nums.push(makeCalculation(num1, num2, op.getOperation()));
 }
 Operator findOperatorInArr(const char& symbol, const DynamicArray<Operator>& opsArr)
 {
@@ -205,18 +222,19 @@ Operator findOperatorInArr(const char& symbol, const DynamicArray<Operator>& ops
 	}
 	throw incorrect_expression("Error: There is no such operator in the input!\n");
 }
-void loadNumIntoTheStack(Stack<double>& nums, const char* expression, unsigned& index, const unsigned& expLen)
+void loadNumIntoTheStack(std::stack<double>& nums, const char* expression, unsigned& index, const unsigned& expLen)
 {
 	bool negative = false;
-	double num = 0;
 	if (expression[index] == '-')
 	{
 		negative = true;
 		index++;
 	}
-	while (expression[index] != ' ')
+	std::string helper;
+	unsigned i = 0;
+	while (isDigit(expression[index]) != false)
 	{
-		num = (num * 10) + (expression[index] - '0');
+		helper += expression[index];
 		if ((index + 1) == expLen)
 		{
 			index++;
@@ -224,84 +242,94 @@ void loadNumIntoTheStack(Stack<double>& nums, const char* expression, unsigned& 
 		}
 		index++;
 	}
+	if (helper.empty())
+	{
+		return;
+	}
+	double num = std::stod(helper);
 	if (negative)
 		num *= -1;
 	nums.push(num);
 }
-char* expressionInBrackets(const char* expression, unsigned& index, const unsigned& expLen)
+double evaluate(const char* expression, unsigned& i, const unsigned& expLen, const DynamicArray<Operator>& opsArr)
 {
-	index += 2;
-	unsigned count = 0;
-	unsigned indexTmp = index;
-	while (expression[indexTmp] != ')')
+	i++;
+	std::stack<Operator> opsStack;
+	std::stack<double> nums;
+	while (expression[i] != ')')
 	{
-		indexTmp += 1;
-		count += 1;
-	}
-	char* result = new char[count];
-	count = 0;
-	while (index != (indexTmp - 1))
-	{
-		result[count++] = expression[index++];
-	}
-	result[count] = '\0';
-	return result;
-}
-double evaluateInBrackets(const char* expression, const DynamicArray<Operator>& opsArr)
-{
-	Stack<Operator> opsStack;
-	Stack<double> nums;
-	unsigned expLen = strlen(expression);
-	for (unsigned i = 0; i < expLen; i++)
-	{
+		if (expression[i] == ' ')
+		{
+			i++;
+			continue;
+		}
 		if (expression[i] == '(')
 		{
-			nums.push(evaluateInBrackets(expressionInBrackets(expression, i, expLen), opsArr));
-		}
-		if (i + 1 < expLen)
-		{
-			if (expression[i] == '-' && isDigit(expression[i + 1]))
-			{
-				loadNumIntoTheStack(nums, expression, i, expLen);
-			}
+			nums.push(evaluate(expression, i, expLen, opsArr));
 		}
 		if (isDigit(expression[i]))
-		{
 			loadNumIntoTheStack(nums, expression, i, expLen);
-		}
+		else if (expression[i] == '-')
+			loadNumIntoTheStack(nums, expression, i, expLen);
 		else if (isLetter(expression[i]))
 		{
-			if (!opsStack.isEmpty())
+			Operator tmp2 = findOperatorInArr(expression[i], opsArr);
+			if (opsStack.empty())
 			{
-				if (opsStack.peek() == findOperatorInArr(expression[i], opsArr))
+				opsStack.push(tmp2);
+				i++;
+				continue;
+			}
+			if (opsStack.top() < tmp2)
+			{
+				opsStack.push(tmp2);
+			}
+			else if (opsStack.top() > tmp2)
+			{
+				Operator tmp1;
+				do
 				{
-					makeOperation(nums, opsStack);
+					tmp1 = opsStack.top();
+					makeOperation(nums, tmp1);
+					opsStack.pop();
+					if (opsStack.empty())
+						break;
+				} while (opsStack.top() <= tmp2);
+				opsStack.push(tmp2);
+			}
+			else if (opsStack.top() == tmp2)
+			{
+				if (opsStack.top().getAssociativity() == 'L')
+				{
+					Operator tmp = opsStack.top();
+					makeOperation(nums, tmp);
+					opsStack.pop();
+					opsStack.push(tmp2);
+				}
+				else if(tmp2.getAssociativity() == 'R')
+				{
+					i += 2;
+					if (expression[i] == '(')
+					{
+						nums.push(evaluate(expression, i, expLen, opsArr));
+					}
+					else
+					{
+						loadNumIntoTheStack(nums, expression, i, expLen);
+					}
+					makeOperation(nums, tmp2);
 				}
 			}
-			opsStack.push(findOperatorInArr(expression[i], opsArr));
 		}
-		if (opsStack.getCurrSize() > 1)
-		{
-			if (opsStack[0] < opsStack[1] && isDigit(expression[i]))
-			{
-				loadNumIntoTheStack(nums, expression, i, expLen);
-				makeOperation(nums, opsStack);
-			}
-			else
-			{
-				makeOperation(nums, opsStack);
-			}
-		}
+		i++;
 	}
-	if (nums.getCurrSize() == 1 && opsStack.getCurrSize() == 0)
+	while (!opsStack.empty())
 	{
-		double result = nums.peek();
-		return result;
+		Operator tmp = opsStack.top();
+		opsStack.pop();
+		makeOperation(nums, tmp);
 	}
-	if (nums.getCurrSize() == 2 && opsStack.getCurrSize() == 1)
-		makeOperation(nums, opsStack);
-	//throw std::exception();
-	double result = nums.peek();
+	double result = nums.top();
 	return result;
 }
 
