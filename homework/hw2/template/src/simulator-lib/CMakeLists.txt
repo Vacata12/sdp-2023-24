@@ -6,4 +6,4 @@ target_sources(
 	PRIVATE
 		"bar-simulator.cpp"
 		"bar-simulator.h"
-)
+ "Student.h" "Student.cpp" "List.h" "List.cpp")
